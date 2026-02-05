@@ -99,6 +99,16 @@ const Dashboard = () => {
         }
     };
 
+    const resetSession = () => {
+        setStep('upload');
+        setJobId(null);
+        setJobStatus(null);
+        setResults([]);
+        setStats({ syntax: 0, disposable: 0, mx: 0, free: 0 });
+        setFilter('all');
+        setCurrentPage(1);
+    };
+
     const proceedToLevel2 = async () => {
         try {
             const { data } = await axios.get('/v1/network-check');
@@ -176,6 +186,10 @@ const Dashboard = () => {
                                     </button>
                                 ))}
                             </div>
+                            <button onClick={resetSession} className="text-slate-500 hover:text-indigo-600 flex items-center gap-1 text-xs font-bold uppercase transition-colors">
+                                <Trash2 className="w-3 h-3" />
+                                New Verification
+                            </button>
                         </div>
                         <table className="w-full text-left text-sm">
                             <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
