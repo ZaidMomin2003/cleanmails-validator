@@ -1,4 +1,4 @@
-PKG_FILES=`go list ./... | sed -e 's=github.com/AfterShip/emailverifier/=./='`
+PKG_FILES=`go list ./... | sed -e 's=cleanmails/=./='`
 
 CCCOLOR="\033[37;1m"
 MAKECOLOR="\033[32;1m"

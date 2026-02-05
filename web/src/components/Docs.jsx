@@ -1,86 +1,143 @@
 import React, { useState } from 'react';
-import {
-    Code, Terminal, Copy, Check, Zap, Server
-} from 'lucide-react';
+import { Terminal, Code, Cpu, Globe, Rocket, ShieldCheck, Mail, Zap, ChevronRight } from 'lucide-react';
 
 const Docs = () => {
-    const [copied, setCopied] = useState(null);
+    const [activeLang, setActiveLang] = useState('nodejs');
 
-    const copyToClipboard = (text, id) => {
-        navigator.clipboard.writeText(text);
-        setCopied(id);
-        setTimeout(() => setCopied(null), 2000);
+    const codeSnippets = {
+        nodejs: `// Node.js (fetch)
+async function verifyEmail(email) {
+  const res = await fetch('https://taftlivingph.com/v1/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, level: 1 })
+  });
+  return await res.json();
+}`,
+        python: `# Python (requests)
+import requests
+
+def verify_email(email):
+    url = "https://taftlivingph.com/v1/verify"
+    payload = {"email": email, "level": 1}
+    response = requests.post(url, json=payload)
+    return response.json()`,
+        ruby: `# Ruby (Net::HTTP)
+require 'net/http'
+require 'json'
+
+def verify_email(email)
+  uri = URI('https://taftlivingph.com/v1/verify')
+  res = Net::HTTP.post(uri, {email: email, level: 1}.to_json, "Content-Type" => "application/json")
+  JSON.parse(res.body)
+end`,
+        go: `// Go (http.Post)
+func verifyEmail(email string) {
+    url := "https://taftlivingph.com/v1/verify"
+    payload := map[string]interface{}{"email": email, "level": 1}
+    jsonData, _ := json.Marshal(payload)
+    resp, _ := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+    // ... parse response
+}`,
+        rest: `# REST (cURL)
+curl -X POST https://taftlivingph.com/v1/verify \\
+     -H "Content-Type: application/json" \\
+     -d '{"email": "test@example.com", "level": 1}'`
     };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-12 pb-12">
-            <header className="space-y-4">
-                <h1 className="text-3xl font-bold text-slate-900 leading-tight">Technical Documentation</h1>
-                <p className="text-slate-500 text-lg">Verification engine API and integration guide.</p>
-            </header>
-
-            <div className="card space-y-4">
-                <div className="flex items-center gap-2 text-indigo-600 font-bold uppercase text-xs tracking-wider">
-                    <Server className="w-4 h-4" />
-                    Base Endpoint
-                </div>
-                <div className="text-2xl font-mono text-slate-900 border-b border-slate-100 pb-4">
-                    http://localhost:8080/v1
-                </div>
-                <p className="text-slate-500 text-sm italic">Include 'Bearer API_KEY' in Authorization header if enabled.</p>
+        <div className="max-w-4xl mx-auto pb-20">
+            <div className="text-center mb-12">
+                <h1 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">API Documentation</h1>
+                <p className="text-slate-500 font-medium">Professional integration guide for developers.</p>
             </div>
 
-            <section className="space-y-6">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-indigo-600" />
-                    Single Email Verification
-                </h2>
-                <div className="bg-slate-900 rounded p-6 overflow-hidden">
-                    <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
-                        <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">cURL / POST</span>
-                        <button onClick={() => copyToClipboard(`curl -X POST http://localhost:8080/v1/verify -d '{"email": "test@test.com", "level": 2}'`, 'curl')} className="text-slate-400 hover:text-white transition-colors">
-                            {copied === 'curl' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                        </button>
+            <div className="space-y-12">
+                {/* Connection Section */}
+                <section>
+                    <div className="flex items-center gap-2 mb-4">
+                        <Globe className="w-6 h-6 text-indigo-600" />
+                        <h2 className="text-2xl font-bold text-slate-800">Connection Details</h2>
                     </div>
-                    <pre className="text-indigo-100 text-sm font-mono overflow-x-auto">
-                        {`curl -X POST http://localhost:8080/v1/verify \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "email": "user@example.com",
-    "level": 2
-  }'`}
-                    </pre>
-                </div>
-            </section>
-
-            <section className="space-y-6">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                    <Terminal className="w-5 h-5 text-indigo-600" />
-                    Batch Processing
-                </h2>
-                <div className="bg-slate-900 rounded p-6 overflow-hidden">
-                    <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
-                        <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Node.js</span>
-                        <button onClick={() => copyToClipboard(`await axios.post('http://localhost:8080/v1/bulk', { emails, level: 2 });`, 'node')} className="text-slate-400 hover:text-white transition-colors">
-                            {copied === 'node' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                        </button>
+                    <div className="bg-slate-900 rounded-xl p-6 text-slate-300 font-mono text-sm leading-relaxed">
+                        <p className="text-emerald-400 mb-2"># Your Cleanmails Engine Endpoint</p>
+                        <p className="text-white">URL: <span className="text-amber-300">https://taftlivingph.com</span></p>
+                        <p className="text-white mt-2">Content-Type: <span className="text-amber-300">application/json</span></p>
                     </div>
-                    <pre className="text-indigo-100 text-sm font-mono overflow-x-auto">
-                        {`const { data } = await axios.post('http://localhost:8080/v1/bulk', {
-  emails: ["test1@gmail.com", "test2@gmail.com"],
-  level: 2
-});
+                </section>
 
-console.log('Task ID:', data.id);`}
-                    </pre>
-                </div>
-            </section>
+                {/* Multi-Language Code Section */}
+                <section>
+                    <div className="flex items-center gap-2 mb-4">
+                        <Code className="w-6 h-6 text-indigo-600" />
+                        <h2 className="text-2xl font-bold text-slate-800">Implementation Examples</h2>
+                    </div>
 
-            <footer className="text-slate-400 text-sm italic">
-                Note: Bulk verification uses parallel worker pools for high-volume cleaning.
-            </footer>
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="flex bg-slate-50 border-b border-slate-200 overflow-x-auto">
+                            {Object.keys(codeSnippets).map((lang) => (
+                                <button
+                                    key={lang}
+                                    onClick={() => setActiveLang(lang)}
+                                    className={`px-6 py-3 text-xs font-black uppercase tracking-widest transition-all ${activeLang === lang
+                                        ? 'bg-white text-indigo-600 border-b-2 border-indigo-600'
+                                        : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                >
+                                    {lang === 'nodejs' ? 'Node.js' : lang}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="bg-slate-900 p-6 font-mono text-sm leading-relaxed text-indigo-100 min-h-[250px]">
+                            <pre><code>{codeSnippets[activeLang]}</code></pre>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Integration Steps */}
+                <section className="space-y-8">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Rocket className="w-6 h-6 text-indigo-600" />
+                        <h2 className="text-2xl font-bold text-slate-800">Integration Workflow</h2>
+                    </div>
+
+                    <div className="grid gap-6">
+                        <StepCard
+                            num="01"
+                            title="Phase 1: Basic Check"
+                            desc="Instant lookup for Syntax, MX, and Disposables."
+                            code={`POST /v1/verify { "level": 1 }`}
+                        />
+
+                        <StepCard
+                            num="02"
+                            title="Phase 2: SMTP Handshake"
+                            desc="Deep-level validation of the mailbox existence."
+                            code={`POST /v1/verify { "level": 2 }`}
+                        />
+                    </div>
+                </section>
+            </div>
         </div>
     );
 };
+
+const StepCard = ({ num, title, desc, code }) => (
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="p-6">
+            <div className="flex items-start gap-4">
+                <span className="text-4xl font-black text-slate-100 select-none">{num}</span>
+                <div>
+                    <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+                    <p className="text-slate-500 text-sm mt-1">{desc}</p>
+                </div>
+            </div>
+            <div className="mt-4 bg-slate-50 border border-slate-100 rounded-lg p-3 font-mono text-[11px] text-indigo-600 flex items-center justify-between">
+                <pre>{code}</pre>
+                <ChevronRight className="w-4 h-4 text-slate-300" />
+            </div>
+        </div>
+    </div>
+);
 
 export default Docs;

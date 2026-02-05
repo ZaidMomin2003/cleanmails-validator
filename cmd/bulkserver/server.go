@@ -20,7 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	emailverifier "github.com/AfterShip/email-verifier"
+	emailverifier "cleanmails"
 )
 
 type Server struct {

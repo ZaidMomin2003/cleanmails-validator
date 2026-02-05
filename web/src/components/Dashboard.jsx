@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Upload, CheckCircle2, AlertCircle, Trash2,
-    Server, User, Zap, Download, Loader2, Search
+    Server, User, Zap, Download, Loader2, Search, Filter, List
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -10,10 +10,12 @@ const Dashboard = () => {
     const [jobId, setJobId] = useState(null);
     const [jobStatus, setJobStatus] = useState(null);
     const [results, setResults] = useState([]);
-    const [stats, setStats] = useState({ syntax: 0, disposable: 0, mx: 0, free: 0 });
+    const [stats, setStats] = useState({ good: 0, risky: 0, bad: 0, syntax: 0, disposable: 0, mx: 0 });
     const [level, setLevel] = useState(1);
     const [filter, setFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
+    const [selectedPhase2Lists, setSelectedPhase2Lists] = useState({ good: true, risky: false, bad: false });
+
     const resultsPerPage = 50;
     const fileInputRef = useRef(null);
 
@@ -32,9 +34,13 @@ const Dashboard = () => {
     const filteredResults = results.filter(item => {
         if (filter === 'all') return true;
         const status = item.result?.reachable || 'unknown';
-        if (filter === 'good') return status === 'yes';
-        if (filter === 'risky') return status === 'unknown';
-        if (filter === 'bad') return status === 'no';
+        const isGood = status === 'yes';
+        const isBad = status === 'no' || item.result?.disposable === true || item.result?.has_mx_records === false;
+        const isRisky = !isGood && !isBad;
+
+        if (filter === 'good') return isGood;
+        if (filter === 'risky') return isRisky;
+        if (filter === 'bad') return isBad;
         return true;
     });
 
@@ -65,14 +71,21 @@ const Dashboard = () => {
     };
 
     const calculateStats = (resList) => {
-        const s = { syntax: 0, disposable: 0, mx: 0, free: 0 };
+        const s = { good: 0, risky: 0, bad: 0, syntax: 0, disposable: 0, mx: 0 };
         resList.forEach((item) => {
             const result = item.result;
             if (result) {
+                const isGood = result.reachable === 'yes';
+                const isBad = result.reachable === 'no' || result.disposable === true || result.has_mx_records === false;
+                const isRisky = !isGood && !isBad;
+
+                if (isGood) s.good++;
+                else if (isBad) s.bad++;
+                else s.risky++;
+
                 if (result.syntax?.valid) s.syntax++;
                 if (result.disposable) s.disposable++;
                 if (!result.has_mx_records) s.mx++;
-                if (result.free) s.free++;
             }
         });
         setStats(s);
@@ -104,9 +117,10 @@ const Dashboard = () => {
         setJobId(null);
         setJobStatus(null);
         setResults([]);
-        setStats({ syntax: 0, disposable: 0, mx: 0, free: 0 });
+        setStats({ good: 0, risky: 0, bad: 0, syntax: 0, disposable: 0, mx: 0 });
         setFilter('all');
         setCurrentPage(1);
+        setSelectedPhase2Lists({ good: true, risky: false, bad: false });
     };
 
     const proceedToLevel2 = async () => {
@@ -120,11 +134,24 @@ const Dashboard = () => {
             console.error("Network check failed", e);
         }
 
-        const cleanEmails = results
-            .filter(({ result }) => result && result.syntax?.valid && !result.disposable && result.has_mx_records)
-            .map(({ email }) => email);
-        if (cleanEmails.length === 0) return alert('No valid emails');
-        startVerification(cleanEmails, 2);
+        const emailsToVerify = results.filter(item => {
+            const status = item.result?.reachable || 'unknown';
+            const isGood = status === 'yes';
+            const isBad = status === 'no' || item.result?.disposable === true || item.result?.has_mx_records === false;
+            const isRisky = !isGood && !isBad;
+
+            if (selectedPhase2Lists.good && isGood) return true;
+            if (selectedPhase2Lists.risky && isRisky) return true;
+            if (selectedPhase2Lists.bad && isBad) return true;
+            return false;
+        }).map(item => item.email);
+
+        if (emailsToVerify.length === 0) return alert('No emails selected for Phase 2');
+        startVerification(emailsToVerify, 2);
+    };
+
+    const togglePhase2List = (list) => {
+        setSelectedPhase2Lists(prev => ({ ...prev, [list]: !prev[list] }));
     };
 
     return (
@@ -159,17 +186,49 @@ const Dashboard = () => {
 
             {step === 'results' && (
                 <div className="space-y-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <StatCard label="Valid Syntax" value={stats.syntax} />
-                        <StatCard label="Disposable" value={stats.disposable} />
-                        <StatCard label="Dormant/No MX" value={stats.mx} />
-                        <StatCard label="Personal/Free" value={stats.free} />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <StatCard label="Good Mails" value={stats.good} color="text-emerald-600" />
+                        <StatCard label="Risky Mails" value={stats.risky} color="text-amber-600" />
+                        <StatCard label="Bad Mails" value={stats.bad} color="text-rose-600" />
                     </div>
 
                     {level === 1 && (
-                        <div className="bg-slate-100 p-4 rounded-lg flex justify-between items-center">
-                            <span className="text-sm font-medium">Phase 1 Complete. Run Phase 2 for SMTP validation?</span>
-                            <button onClick={proceedToLevel2} className="btn-primary">Start Phase 2</button>
+                        <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                            <div className="flex-1">
+                                <h3 className="text-lg font-bold flex items-center gap-2"><Zap className="w-5 h-5 text-amber-500" /> Phase 1 Complete</h3>
+                                <p className="text-sm text-slate-500 mt-1">Select which lists you'd like to proceed with for deep SMTP validation:</p>
+
+                                <div className="flex flex-wrap gap-3 mt-4">
+                                    <ListToggle
+                                        label="Good"
+                                        count={stats.good}
+                                        active={selectedPhase2Lists.good}
+                                        onClick={() => togglePhase2List('good')}
+                                        color="emerald"
+                                    />
+                                    <ListToggle
+                                        label="Risky"
+                                        count={stats.risky}
+                                        active={selectedPhase2Lists.risky}
+                                        onClick={() => togglePhase2List('risky')}
+                                        color="amber"
+                                    />
+                                    <ListToggle
+                                        label="Bad"
+                                        count={stats.bad}
+                                        active={selectedPhase2Lists.bad}
+                                        onClick={() => togglePhase2List('bad')}
+                                        color="rose"
+                                    />
+                                </div>
+                            </div>
+                            <button
+                                onClick={proceedToLevel2}
+                                className="bg-slate-900 hover:bg-black text-white px-8 py-3 rounded-lg font-bold flex items-center gap-2 transition-all w-full md:w-auto justify-center"
+                            >
+                                Start Phase 2 Check
+                                <ArrowRight className="w-4 h-4" />
+                            </button>
                         </div>
                     )}
 
@@ -180,9 +239,9 @@ const Dashboard = () => {
                                     <button
                                         key={f}
                                         onClick={() => setFilter(f)}
-                                        className={`px-3 py-1 rounded text-xs font-medium ${filter === f ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}
+                                        className={`px-3 py-1 rounded text-xs font-bold uppercase tracking-wider transition-all ${filter === f ? 'bg-slate-900 text-white' : 'hover:bg-slate-200 text-slate-600'}`}
                                     >
-                                        {f.toUpperCase()}
+                                        {f}
                                     </button>
                                 ))}
                             </div>
@@ -194,23 +253,41 @@ const Dashboard = () => {
                         <table className="w-full text-left text-sm">
                             <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
                                 <tr>
-                                    <th className="px-4 py-3">Email</th>
-                                    <th className="px-4 py-3">Status</th>
-                                    <th className="px-4 py-3">Result</th>
+                                    <th className="px-4 py-3">Email Address</th>
+                                    <th className="px-4 py-3">Type</th>
+                                    <th className="px-4 py-3">Infrastructure</th>
+                                    <th className="px-4 py-3">SMTP Result</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {paginatedResults.map((item, idx) => (
-                                    <tr key={idx}>
-                                        <td className="px-4 py-3 truncate max-w-xs">{item.email}</td>
-                                        <td className="px-4 py-3">
-                                            {item.result?.disposable ? 'Disposable' : 'Corporate'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <StatusLabel status={item.result?.reachable || 'unknown'} />
-                                        </td>
-                                    </tr>
-                                ))}
+                                {paginatedResults.map((item, idx) => {
+                                    const result = item.result;
+                                    const isDisposable = result?.disposable;
+                                    const hasMX = result?.has_mx_records;
+                                    const reachable = result?.reachable || 'unknown';
+                                    const smtp = result?.smtp;
+
+                                    return (
+                                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-4 py-3 font-medium text-slate-700">{item.email}</td>
+                                            <td className="px-4 py-3">
+                                                {isDisposable ?
+                                                    <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded text-[10px] font-bold">DISPOSABLE</span> :
+                                                    <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold">CORPORATE</span>
+                                                }
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {hasMX ?
+                                                    <span className="text-emerald-600 flex items-center gap-1 font-bold text-[10px]"><CheckCircle2 className="w-3 h-3" /> MX ACTIVE</span> :
+                                                    <span className="text-rose-600 flex items-center gap-1 font-bold text-[10px]"><XCircle className="w-3 h-3" /> NO MX</span>
+                                                }
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <SMTPBadge reachable={reachable} smtp={smtp} />
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
 
@@ -218,8 +295,8 @@ const Dashboard = () => {
                             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
                                 <span>Page {currentPage} of {totalPages}</span>
                                 <div className="flex gap-1">
-                                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-2 py-1 border border-slate-200 rounded bg-white">Prev</button>
-                                    <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="px-2 py-1 border border-slate-200 rounded bg-white">Next</button>
+                                    <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-4 py-2 border border-slate-200 rounded-lg bg-white font-bold hover:bg-slate-50 disabled:opacity-50">PREV</button>
+                                    <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="px-4 py-2 border border-slate-200 rounded-lg bg-white font-bold hover:bg-slate-50 disabled:opacity-50">NEXT</button>
                                 </div>
                             </div>
                         )}
@@ -230,21 +307,45 @@ const Dashboard = () => {
     );
 };
 
-const StatCard = ({ label, value }) => (
-    <div className="bg-white border border-slate-200 rounded p-4 shadow-sm">
-        <div className="text-slate-500 text-xs font-medium mb-1 uppercase tracking-wider">{label}</div>
-        <div className="text-2xl font-bold">{value.toLocaleString()}</div>
+const StatCard = ({ label, value, color }) => (
+    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+        <div className="text-slate-500 text-xs font-black uppercase tracking-widest mb-2">{label}</div>
+        <div className={`text-3xl font-black ${color}`}>{value.toLocaleString()}</div>
     </div>
 );
 
-const StatusLabel = ({ status }) => {
+const ListToggle = ({ label, count, active, onClick, color }) => {
     const colors = {
-        yes: 'text-emerald-600',
-        no: 'text-rose-600',
-        unknown: 'text-slate-400'
+        emerald: active ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+        amber: active ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100',
+        rose: active ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700 hover:bg-rose-100',
     };
-    const labels = { yes: 'Valid', no: 'Invalid', unknown: 'Unknown' };
-    return <span className={`font-bold uppercase text-[10px] ${colors[status]}`}>{labels[status]}</span>;
+
+    return (
+        <button
+            onClick={onClick}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 border border-transparent ${colors[color]}`}
+        >
+            <div className={`w-2 h-2 rounded-full ${active ? 'bg-white' : `bg-${color}-500`}`} />
+            {label} ({count})
+            {active && <CheckCircle2 className="w-3 h-3" />}
+        </button>
+    );
 };
+
+const SMTPBadge = ({ reachable, smtp }) => {
+    if (reachable === 'yes') return <span className="text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight">DELIVERABLE / GOOD</span>;
+    if (smtp?.catch_all) return <span className="text-amber-700 bg-amber-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight">CATCH ALL / RISKY</span>;
+    if (reachable === 'no') return <span className="text-rose-700 bg-rose-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight">NON-EXISTENT / BAD</span>;
+    return <span className="text-slate-400 bg-slate-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight">UNTESTED</span>;
+};
+
+const XCircle = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" /></svg>
+);
+
+const ArrowRight = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+);
 
 export default Dashboard;

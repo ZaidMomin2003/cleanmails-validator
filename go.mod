@@ -1,4 +1,4 @@
-module github.com/AfterShip/email-verifier
+module cleanmails
 
 go 1.22
 
