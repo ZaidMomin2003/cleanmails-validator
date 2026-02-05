@@ -1,3 +1,4 @@
+# Stage 1: Build the React frontend
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/web
 COPY web/package*.json ./
@@ -5,21 +6,25 @@ RUN npm install
 COPY web/ .
 RUN npm run build
 
+# Stage 2: Build the Go backend
 FROM golang:1.22-alpine AS backend-builder
 WORKDIR /app
+# Copy dependencies first for caching
 COPY go.mod go.sum ./
 RUN go mod download
+# Copy the rest of the source code
 COPY . .
-# Explicitly copy the frontend build to the backend's expected directory
-COPY --from=frontend-builder /app/web/dist ./public
-RUN CGO_ENABLED=0 GOOS=linux go build -o bulkserver ./cmd/bulkserver
+# Explicitly build the binary from the cmd/bulkserver directory
+RUN cd cmd/bulkserver && CGO_ENABLED=0 GOOS=linux go build -v -o /app/bulkserver .
 
+# Stage 3: Final production image
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates wget
 WORKDIR /app
-# Copy everything needed to the app directory
+# Copy the frontend build to the backend's expected directory
+COPY --from=frontend-builder /app/web/dist ./public
+# Copy backend binary
 COPY --from=backend-builder /app/bulkserver .
-COPY --from=backend-builder /app/public ./public
 
 RUN chmod +x ./bulkserver
 
