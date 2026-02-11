@@ -1,11 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import Docs from './components/Docs';
 import SingleVerifier from './components/SingleVerifier';
-import { ShieldCheck, BookOpen, LayoutDashboard, User } from 'lucide-react';
+import Login from './components/Login';
+import { ShieldCheck, BookOpen, LayoutDashboard, User, LogOut } from 'lucide-react';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  useEffect(() => {
+    const authStatus = localStorage.getItem('cleanmails_auth');
+    if (authStatus === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+    localStorage.setItem('cleanmails_auth', 'true');
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem('cleanmails_auth');
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -15,6 +34,10 @@ function App() {
       default: return <Dashboard />;
     }
   };
+
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
@@ -45,6 +68,14 @@ function App() {
           >
             <BookOpen className="w-4 h-4" />
             Docs
+          </button>
+          <div className="w-[1px] h-6 bg-slate-200 mx-2" />
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium text-rose-500 hover:bg-rose-50 transition-colors"
+            title="Lock Session"
+          >
+            <LogOut className="w-4 h-4" />
           </button>
         </nav>
       </header>
