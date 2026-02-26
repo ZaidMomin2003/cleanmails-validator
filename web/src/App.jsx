@@ -5,7 +5,9 @@ import SingleVerifier from './components/SingleVerifier';
 import EmailExtractor from './components/EmailExtractor';
 import SpamAnalysis from './components/SpamAnalysis';
 import ListCleaner from './components/ListCleaner';
+import Setup from './components/Setup';
 import Login from './components/Login';
+import axios from 'axios';
 import {
   ShieldCheck,
   BookOpen,
@@ -23,11 +25,41 @@ import {
   CheckCircle2,
   AlertTriangle,
   Zap,
-  Filter
+  Filter,
+  Loader2
 } from 'lucide-react';
+
+// Configure Axios
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('cleanmails_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// For native fetch
+const originalFetch = window.fetch;
+window.fetch = (...args) => {
+  const token = localStorage.getItem('cleanmails_token');
+  if (token && args[1]) {
+    args[1].headers = {
+      ...args[1].headers,
+      'Authorization': `Bearer ${token}`
+    };
+  } else if (token) {
+    args[1] = {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    };
+  }
+  return originalFetch(...args);
+};
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(null); // null means checking
   const [activeTab, setActiveTab] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -39,14 +71,9 @@ function App() {
   };
 
   useEffect(() => {
-    const authStatus = localStorage.getItem('cleanmails_auth');
-    if (authStatus === 'true') {
-      setIsAuthenticated(true);
-    }
+    checkStatus();
 
     const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
     if (savedTheme === 'light') {
       setDarkMode(false);
       document.documentElement.classList.remove('dark');
@@ -55,6 +82,22 @@ function App() {
       document.documentElement.classList.add('dark');
     }
   }, []);
+
+  const checkStatus = async () => {
+    try {
+      const response = await fetch('/v1/auth/status');
+      const data = await response.json();
+      setIsInitialized(data.initialized);
+
+      const token = localStorage.getItem('cleanmails_token');
+      if (token) {
+        setIsAuthenticated(true);
+      }
+    } catch (err) {
+      console.error('Failed to check auth status', err);
+      setIsInitialized(true); // default to true to show login if server is unreachable
+    }
+  };
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
@@ -68,14 +111,14 @@ function App() {
     }
   };
 
-  const handleLogin = () => {
+  const handleLogin = (token) => {
     setIsAuthenticated(true);
-    localStorage.setItem('cleanmails_auth', 'true');
+    localStorage.setItem('cleanmails_token', token);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    localStorage.removeItem('cleanmails_auth');
+    localStorage.removeItem('cleanmails_token');
   };
 
   const menuItems = [
@@ -99,6 +142,19 @@ function App() {
       default: return <Dashboard />;
     }
   };
+
+  if (isInitialized === null) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-6">
+        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+        <p className="text-slate-500 font-black tracking-[0.3em] text-[10px] uppercase">Booting Hygiene Engine...</p>
+      </div>
+    );
+  }
+
+  if (!isInitialized) {
+    return <Setup onComplete={() => checkStatus()} />;
+  }
 
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;

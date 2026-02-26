@@ -26,6 +26,7 @@ import (
 type Server struct {
 	cfg  Config
 	jobs *JobManager
+	auth *AuthStore
 
 	level1Sem chan struct{}
 	level2Sem chan struct{}
@@ -69,6 +70,7 @@ func NewServer(cfg Config) *Server {
 	s := &Server{
 		cfg:       cfg,
 		jobs:      NewJobManager(cfg.ResultTTL),
+		auth:      NewAuthStore("auth.json"),
 		level1Sem: make(chan struct{}, cfg.Level1Concurrency),
 		level2Sem: make(chan struct{}, cfg.Level2Concurrency),
 		rateCh:    make(chan struct{}, 1000),
@@ -109,6 +111,12 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("/v1/verify", s.handleVerify)
 	mux.HandleFunc("/v1/bulk", s.handleBulk)
 	mux.HandleFunc("/v1/bulk/", s.handleBulkByID)
+
+	// Auth routes
+	mux.HandleFunc("/v1/auth/setup", s.handleAuthSetup)
+	mux.HandleFunc("/v1/auth/login", s.handleAuthLogin)
+	mux.HandleFunc("/v1/auth/status", s.handleAuthStatus)
+
 	// Robust Static File Path Searching
 	cwd, _ := os.Getwd()
 	log.Printf("[Init] Current Working Directory: %s", cwd)
@@ -136,7 +144,7 @@ func (s *Server) routes() http.Handler {
 	fs := http.FileServer(http.Dir(publicPath))
 	mux.Handle("/", fs)
 
-	return mux
+	return s.auth.AuthMiddleware(mux)
 }
 
 func (s *Server) getNextLocalIP() string {
@@ -623,10 +631,63 @@ func formatBoolPtr(smtp *emailverifier.SMTP, f func(*emailverifier.SMTP) bool) s
 	return strconv.FormatBool(f(smtp))
 }
 
+func (s *Server) handleAuthSetup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if req.Username == "" || req.Password == "" {
+		writeError(w, http.StatusBadRequest, "username_password_required")
+		return
+	}
+	if err := s.auth.Setup(req.Username, req.Password); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeStatus(w, http.StatusCreated, "ok")
+}
+
+func (s *Server) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	token, err := s.auth.Login(req.Username, req.Password)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+func (s *Server) handleAuthStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]interface{}{"initialized": s.auth.Status()})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeStatus(w http.ResponseWriter, status int, code string) {
+	writeJSON(w, status, map[string]string{"status": code})
 }
 
 func writeError(w http.ResponseWriter, status int, code string) {

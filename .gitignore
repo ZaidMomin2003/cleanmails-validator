@@ -26,3 +26,6 @@ web/node_modules/
 # Environment variables
 .env
 .env.local
+
+# Auth config
+auth.json
