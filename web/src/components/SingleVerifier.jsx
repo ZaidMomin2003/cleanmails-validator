@@ -19,7 +19,7 @@ const SingleVerifier = () => {
 
         try {
             const { data } = await axios.post('/v1/verify', { email, level: 1 });
-            setResult(data);
+            setResult({ ...data, level: 1 });
         } catch (err) {
             setError(err.response?.data?.error || 'Validation failed');
         } finally {
@@ -35,7 +35,7 @@ const SingleVerifier = () => {
 
         try {
             const { data } = await axios.post('/v1/verify', { email, level: 2 });
-            setResult(data);
+            setResult({ ...data, level: 2 });
         } catch (err) {
             setError(err.response?.data?.error || 'Level 2 Validation failed');
         } finally {
@@ -51,13 +51,23 @@ const SingleVerifier = () => {
         const mx = result.has_mx_records;
         const disposable = result.disposable;
         const smtp = result.smtp;
+        const level = result.level || 1;
 
-        if (reachable === 'yes') return { icon: <CheckCircle2 className="w-12 h-12 text-emerald-500" />, label: 'Verified Deliverable', color: 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500', subLabel: 'Mailbox exists and is ready for outreach.' };
-        if (smtp?.catch_all) return { icon: <AlertTriangle className="w-12 h-12 text-amber-500" />, label: 'Catch-All Detected', color: 'border-amber-500/20 bg-amber-500/5 text-amber-500', subLabel: 'Risky. Domain accepts all mail; individual existence undefined.' };
-        if (disposable) return { icon: <XCircle className="w-12 h-12 text-rose-500" />, label: 'Disposable Address', color: 'border-rose-500/20 bg-rose-500/5 text-rose-500', subLabel: 'Temporary mailbox. High bounce risk.' };
-        if (reachable === 'no' || !mx) return { icon: <XCircle className="w-12 h-12 text-rose-500" />, label: 'Invalid Recipient', color: 'border-rose-500/20 bg-rose-500/5 text-rose-500', subLabel: 'Mailbox target does not exist or host is down.' };
+        const isBad = reachable === 'no' || disposable === true || mx === false;
 
-        return { icon: <Shield className="w-12 h-12 text-muted-foreground" />, label: 'Inconclusive', color: 'border-muted bg-muted/5 text-muted-foreground', subLabel: 'Phase 1 analysis complete. SMTP handshake required.' };
+        if (isBad) {
+            if (disposable) return { icon: <XCircle className="w-12 h-12 text-rose-500" />, label: 'Disposable Address', color: 'border-rose-500/20 bg-rose-500/5 text-rose-500', subLabel: 'Temporary mailbox. High bounce risk.' };
+            return { icon: <XCircle className="w-12 h-12 text-rose-500" />, label: 'Invalid Recipient', color: 'border-rose-500/20 bg-rose-500/5 text-rose-500', subLabel: 'Mailbox target does not exist or host is down.' };
+        }
+
+        if (level === 2) {
+            const isRisky = smtp?.catch_all || reachable === 'unknown';
+            if (isRisky) return { icon: <AlertTriangle className="w-12 h-12 text-amber-500" />, label: 'Risky / Catch-All', color: 'border-amber-500/20 bg-amber-500/5 text-amber-500', subLabel: 'Catch-all domain or existence undefined. Moderate risk.' };
+            return { icon: <CheckCircle2 className="w-12 h-12 text-emerald-500" />, label: 'Verified Deliverable', color: 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500', subLabel: 'Mailbox confirmed via SMTP handshake.' };
+        }
+
+        // Phase 1 - Good/Risky Merged
+        return { icon: <CheckCircle2 className="w-12 h-12 text-emerald-500" />, label: 'Deliverable (L1)', color: 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500', subLabel: 'Infrastructure verified. Deep-handshake recommended.' };
     };
 
     const status = getStatusInfo();
